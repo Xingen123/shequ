@@ -1,0 +1,37 @@
+@import './base.scss';
+.my-sceen-tree{
+  max-height: 600px;
+  overflow-y: scroll;
+}
+.ant-tree{
+  background: transparent !important;
+}
+.ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected, .ant-tree .ant-tree-checkbox+span.ant-tree-node-selected{
+    // background-color:rgba(255, 153, 0, 0.6) !important;
+    background: transparent !important;
+  }
+.ant-tree .ant-tree-checkbox {
+  margin-block-start: 0px !important;
+}
+
+ .ant-tree-show-line .ant-tree-switcher-line-icon{
+  color:white !important;
+  font-size: 18px;
+ }
+ .save-tree{
+  width: 100px;
+  // border: 1px solid #FFFFFF;
+  padding: 4px 8px;
+  border-radius: 5px;
+  text-align: center;
+  color: #FFFFFF;
+  font-size: 20px;
+  line-height: 23px;
+  text-shadow: 0 0 1px #fff, 0 0 5px #fff, 0 0 1px #0CECF7;
+  cursor: pointer;
+  transition: all 0.4s;
+  margin:10px ;
+ }
+ .save-tree:hover{
+    transform: scale(1.1);
+ }
