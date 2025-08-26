@@ -17,6 +17,7 @@
     "animejs": "^3.2.1",
     "ant-design-vue": "4.x",
     "axios": "^1.2.1",
+    "coordtransform": "^2.1.2",
     "dayjs": "^1.11.8",
     "echarts": "^5.4.2",
     "echarts-liquidfill": "^3.1.0",

@@ -1,37 +1,75 @@
 @import './base.scss';
-.my-sceen-tree{
-  max-height: 600px;
-  overflow-y: scroll;
-}
-.ant-tree{
-  background: transparent !important;
-}
-.ant-tree .ant-tree-node-content-wrapper.ant-tree-node-selected, .ant-tree .ant-tree-checkbox+span.ant-tree-node-selected{
-    // background-color:rgba(255, 153, 0, 0.6) !important;
-    background: transparent !important;
-  }
-.ant-tree .ant-tree-checkbox {
-  margin-block-start: 0px !important;
+
+.tree-box1 {
+ /* 树的整体背景和字体 */
+.ant-tree {
+  background-color: #f5f7f8; /* 背景淡灰色，突出主体色 */
+  color: #333; 
+  font-family: "PingFang SC", "Helvetica", sans-serif;
+  border-radius: 6px;
+  padding: 8px;
 }
 
- .ant-tree-show-line .ant-tree-switcher-line-icon{
-  color:white !important;
-  font-size: 18px;
- }
- .save-tree{
-  width: 100px;
-  // border: 1px solid #FFFFFF;
+/* 树节点字体、选中、hover */
+.ant-tree-node-content-wrapper {
   padding: 4px 8px;
-  border-radius: 5px;
-  text-align: center;
-  color: #FFFFFF;
-  font-size: 20px;
-  line-height: 23px;
-  text-shadow: 0 0 1px #fff, 0 0 5px #fff, 0 0 1px #0CECF7;
-  cursor: pointer;
-  transition: all 0.4s;
-  margin:10px ;
- }
- .save-tree:hover{
-    transform: scale(1.1);
- }
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+/* hover 效果 */
+.ant-tree-node-content-wrapper:hover {
+  background-color: rgba(117, 149, 162, 0.15); /* #7595a2 15%透明度 */
+}
+
+/* 选中效果 */
+.ant-tree-node-selected .ant-tree-node-content-wrapper {
+  background-color: #7595a2;
+  color: #fff;
+}
+
+/* 高亮搜索文本 */
+.ant-tree-node-content-wrapper .highlight {
+  color: #7595a2;
+  font-weight: 600;
+}
+
+/* 小图标或 switch（收起展开箭头）颜色 */
+.ant-tree-switcher,
+.ant-tree-switcher-icon {
+  color: #7595a2;
+}
+
+/* 子节点缩进线条颜色 */
+.ant-tree .ant-tree-treenode::before {
+  border-left: 1px solid rgba(117, 149, 162, 0.3);
+}
+}
+
+/* 表头背景色 */
+.ant-table-thead > tr > th {
+  background-color: #2A3E2D !important;
+  color: white !important;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.ant-table-wrapper .ant-table.ant-table-bordered .ant-table-tbody >tr >td{
+  background-color: #7595a2 !important;
+  color: black !important;
+  font-weight: 500;
+}
+.ant-table-wrapper .ant-table.ant-table-bordered .ant-table-tbody >tr >td:hover {
+   background-color: #8ea9ba !important;
+}
+/* 边框颜色统一改黑色 */
+.ant-table-bordered .ant-table-cell,
+.ant-table-bordered .ant-table-thead > tr > th,
+.ant-table-bordered .ant-table-tbody > tr > td {
+  border-color: black !important;
+}
+
+.custom-table .ant-table-body {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch; /* iOS 惯性滚动 */
+}
