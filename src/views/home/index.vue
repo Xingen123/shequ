@@ -1,5 +1,6 @@
 <template>
 	<div class="es-center">
+    <Headers v-show="showTreeBox"></Headers>
     <div class="header">
       {{activeShequ}}
     </div>
@@ -44,6 +45,7 @@
 </template>
 
 <script setup lang='ts'>
+  import Headers from '@/components/header/index.vue'
 	import CesiumTree from './components/center/tree.vue'
   import { onMounted,ref } from 'vue'
 	let _viewer = null
@@ -59,6 +61,8 @@
 const polygonMap = new Map();
 const modelMap = new Map();
 const labelMap = new Map();
+const clickLabelMap = new Map();
+
 	const showTree = ref(false)
 	const onViewerReady = ({viewer,Cesium}) =>{
 		_viewer = viewer
@@ -156,11 +160,20 @@ function traverseAndRender(nodes) {
       scale: 0.8,
     });
     model.id = node.key;
+// 加载完成后再调属性
+// model.readyPromise.then(() => {
+//   // 方法 1: 整体叠加颜色（推荐）
+//   // model.color = Cesium.Color.WHITE.withAlpha(1.0); // 白色会提亮
+//   // model.colorBlendMode = Cesium.ColorBlendMode.MIX; 
+//   // model.colorBlendAmount = 1; // 0~1 调节亮度强度
 
+//   // // 方法 2: 环境光加强
+//   // model.imageBasedLightingFactor = new Cesium.Cartesian2(2.0, 2.0); // 默认 (1,1)
+
+//   // // 方法 3: 光源颜色加强
+//   // model.lightColor = new Cesium.Cartesian3(1.2, 1.2, 1.2); // RGB >1 也可以，越亮
+// });
     // 💡 增加亮度/自发光：使用 colorBlendMode + colorBlendAmount
-    model.color = Cesium.Color.WHITE;               // 强制覆盖颜色
-    model.colorBlendMode = Cesium.ColorBlendMode.HIGHLIGHT; 
-    model.colorBlendAmount = 0.3;                   // 调节亮度感
 
     // 添加到场景
     _viewer.scene.primitives.add(model);
@@ -265,44 +278,60 @@ function clickTarget(node) {
   //   highlightedModel = targetModel;
   // }
 }
-/**
- * @param id 固定实体 ID
- */
-function addOrUpdateLabelById(id,type) {
-   // 如果是社区
-  if(type == 1) return 
-  let {node} = type == 3 ? modelMap.get(id) : polygonMap.get(id)
-  if(!node) return 
-  let {position,address} = node
-  let [lon, lat]= position
-  // 如果已经存在同 ID 的 entity，则先移除
-  const existing = _viewer.entities.getById('click-label');
-  if (existing) {
-    _viewer.entities.remove(existing);
+// 全局或模块内维护一个 Map
+
+// 全局或模块内维护一个 Map
+function addOrUpdateLabelById(id, type) {
+  if (type == 1) return;
+
+  let { node } = type == 3 ? modelMap.get(id) : polygonMap.get(id);
+  if (!node) return;
+
+  let { position, address } = node;
+  let [lon, lat] = position;
+
+  // 判断当前是否已存在
+  if (clickLabelMap.has(id)) {
+    const existing = clickLabelMap.get(id);
+
+    // 如果当前是显示状态 → 点击后隐藏
+    if (existing.show) {
+      existing.show = false;
+      return null;
+    }
+
+    // 如果当前是隐藏状态 → 点击后显示，并隐藏其他
+    clickLabelMap.forEach((entity) => (entity.show = false));
+    existing.show = true;
+    return existing;
   }
-  if (existing && existing.label.text == address) {
-    return false
-  }
-  // 创建新 label
+
+  // 如果之前没有，就新建一个，并隐藏其他
+  clickLabelMap.forEach((entity) => (entity.show = false));
+
   const labelEntity = _viewer.entities.add({
-    id:'click-label', // 固定 ID
+    id: `click-label-${id}`,
     position: Cesium.Cartesian3.fromDegrees(lon, lat, 1),
     label: {
-      text:address,
-            font: "14px sans-serif",
-            fillColor: Cesium.Color.BLACK,
-            showBackground: true,
-            outlineColor: Cesium.Color.WHITE,     // 白色边框
-            outlineWidth: 2,         
-            backgroundColor: Cesium.Color.YELLOW.withAlpha(1),
-            // Cesium.Color.fromCssColorString("#5475ba"),
-            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 80000),
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      text: address,
+      font: "14px sans-serif",
+      fillColor: Cesium.Color.BLACK,
+      showBackground: true,
+      outlineColor: Cesium.Color.WHITE,
+      outlineWidth: 2,
+      backgroundColor: Cesium.Color.YELLOW.withAlpha(1),
+      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 80000),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
+    show: true,
   });
+
+  clickLabelMap.set(id, labelEntity);
 
   return labelEntity;
 }
+
+
 // 简单判断是否是移动端
 function isMobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -406,7 +435,7 @@ const toggleTree = () => {
     z-index: 111;
     width: 100%;
     height: 60px;
-    background: #83283a;
+    background: linear-gradient(135deg, #83283a, #da5c60);
     text-align: center;
     line-height: 60px;
     color: white;

@@ -1,181 +1,214 @@
 <template>
-<header>
-	<div class="es-screen-header" >
-		<div class="es-screen-header-left">
-			<span class="datetime">{{ currentTime }}</span>
-			<label style="margin:0 30px;font-size:14px;" >{{ currentDate }}</label>
-		</div>
-		<div class="es-screen-header-title"  @click="screenChange"></div>
-		<div class="es-screen-header-right">
-		
-		</div>
-	</div>
-</header>
+  <div class="weather-card">
+    <header class="weather-header">
+      <div class="city">{{ weather.city }}</div>
+      <div class="date">
+        {{ weather.date }} {{ weather.week }}
+      </div>
+      <div class="now-time">当前时间：{{ nowTime }}</div>
+      <div class="update">数据更新时间：{{ weather.update_time }}</div>
+    </header>
 
+    <main class="weather-main">
+      <div class="wea-info">
+        <!-- <img
+          class="wea-icon"
+          :src="getWeaIcon(weather.wea_img)"
+          :alt="weather.wea"
+        /> -->
+        <div class="tem">{{ weather.tem }}°C</div>
+        <div class="wea">{{ weather.wea }}</div>
+      </div>
+
+      <div class="tem-range">
+        <span>白天：{{ weather.tem_day }}°C</span>
+        <span>夜间：{{ weather.tem_night }}°C</span>
+      </div>
+    </main>
+
+    <footer class="weather-footer">
+      <div class="footer-item">风向：{{ weather.win }}</div>
+      <div class="footer-item">风力：{{ weather.win_speed }}</div>
+      <div class="footer-item">风速：{{ weather.win_meter }}</div>
+      <div class="footer-item">气压：{{ weather.pressure }} hPa</div>
+      <div class="footer-item">湿度：{{ weather.humidity }}</div>
+      <div class="footer-item">空气质量：{{ weather.air }}</div>
+    </footer>
+  </div>
 </template>
 
-<script setup lang='ts'>
-import { CloudFilled} from '@ant-design/icons-vue';
-import { computed,onMounted,onBeforeUnmount,nextTick,watch, ref } from 'vue'
-import dayjs from 'dayjs'
-import { useScreenStore } from '@/store'
-import darkIcon from '@/assets/images/screen/qiehuan_dark.png'
-import lightIcon from '@/assets/images/screen/qiehuan_light.png'
-import githubIconDark from '@/assets/images/screen/github_dark.svg'
-import githubIconLight from '@/assets/images/screen/github_light.svg'
-import { useRouter } from "vue-router"
-const store = useScreenStore()
-const router = useRouter();
+<script setup>
+import { reactive, ref, onMounted, onUnmounted } from "vue";
+import { getShequTreeData,getWeather } from '@/api/apiList.ts';
+// 天气数据
+const weather = reactive({
+  // nums: 226,
+  // cityid: "101120101",
+  // city: "济南",
+  // date: "2022-05-05",
+  // week: "星期四",
+  // update_time: "22:38",
+  // wea: "多云",
+  // wea_img: "yun",
+  // tem: "25",
+  // tem_day: "30",
+  // tem_night: "23",
+  // win: "南风",
+  // win_speed: "3级",
+  // win_meter: "19km/h",
+  // air: "53",
+  // pressure: "987",
+  // humidity: "27%"
+});
 
-const weather = computed(() => {
-	return store.getEvaluation.weather
-})
-const icon = computed(() => store.theme === 'dark' ? darkIcon : lightIcon)
-const githubIcon = computed(() => store.theme === 'dark' ? githubIconDark : githubIconLight)
+// 当前时间
+const nowTime = ref("");
 
-const currentTime = ref('')
-const currentDate = ref('')
-const allTime = ref(null)
-let timeId = null
-const isScreen = ref(true)
-function handleChangeTheme() {
-	store.$patch({
-		theme: store.theme === 'dark' ? 'light' : 'dark'
-	})
-}
-function screenChange(){
-	isScreen.value = !isScreen.value
-	if(!isScreen.value){
-		document.documentElement.requestFullscreen()
-	}else{
-		document.exitFullscreen()
-	}
-}
-function startTime() {
-	timeId = setTimeout(() => {
-		currentTime.value = dayjs().format('HH:mm:ss')
-		if(currentTime.value == '06:00:00'){
-			store.setReload(false)
-			setTimeout(()=>{
-				store.setReload(true)
-			},1000)
-		}
-		startTime()
-	}, 1000)
-	const day = ['日','一','二','三','四','五','六']
-	currentDate.value = `${dayjs().format('YYYY-MM-DD')}   星期${day[dayjs().day()]}`
-}
+// 格式化时间函数
+const formatTime = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${y}-${m}-${d} ${h}:${min}:${s}`;
+};
 
+// 定时器
+let timer = null;
 onMounted(() => {
-})
-onBeforeUnmount(() => {
-	clearTimeout(timeId)
-})
+	getWeatherApi();
+  nowTime.value = formatTime(new Date());
+  timer = setInterval(() => {
+    nowTime.value = formatTime(new Date());
+  }, 1000);
+});
 
-startTime()
+onUnmounted(() => {
+  if (timer) clearInterval(timer);
+});
+// 获取天气图标
+// 获取天气
+const getWeatherApi = async () => {
+  const cacheKey = "weather_cache";
+
+  // 1. 先尝试读取缓存
+  const cache = localStorage.getItem(cacheKey);
+  if (cache) {
+    try {
+      const { date, data } = JSON.parse(cache);
+
+      // 判断日期是否一致（只比对 yyyy-MM-dd）
+      const today = formatDate(new Date());
+      if (date === today) {
+        console.log("使用缓存天气数据");
+        Object.assign(weather, data);
+        return;
+      }
+    } catch (e) {
+      console.warn("缓存解析失败，忽略", e);
+    }
+  }
+
+  // 2. 如果没有缓存或过期，就请求接口
+  console.log("请求接口获取天气数据");
+  const data = await getWeather();
+  Object.assign(weather, data);
+
+  // 3. 写入缓存
+  localStorage.setItem(
+    cacheKey,
+    JSON.stringify({
+      date: formatDate(new Date()),
+      data
+    })
+  );
+};
+
+// 工具函数：格式化日期为 yyyy-MM-dd
+const formatDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+// 获取天气图标
+const getWeaIcon = (icon) => {
+  return `https://weather-icon.verydog.cn/svg/${icon}.svg`;
+};
 </script>
 
-<style lang='scss' scoped>
-
-.es-screen-header {
-	position: fixed;
-	width:  100%;
-	height: 126px;
-	animation: fade 3s;
-	z-index: 10;
-	// background: url('@/assets/images/top-bg.png') no-repeat;
-	background-size: 100% 100%;
-	&-title {
-		position: absolute;
-		left: 50%;
-		top: 30%;
-		cursor: pointer;
-		transform: translate(-50%, -50%);
-		width: 505px;
-		height: 50px;
-		font-family: 'MyFont2';
-		background-size: 100% 100%;
-		line-height: 110px;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		font-size: 38px;
-		font-weight: 500;
-		letter-spacing: 7px;
-		
-		// background:linear-gradient(90deg, #ffffff 0%  #dceffd 20% #c8e4fd 100%);
-		// -webkit-background-clip: text;
-		// -webkit-text-fill-color: transparent;
-		// color: #FFFFFF;
-		// text-shadow: 0px 0px 10px #1380FF;
-	}
-	&-left {
-		width: 410px;
-		height: 34px;
-		display: flex;
-		align-items: center;
-		padding: 0 15px;
-		position:absolute;
-		// background: rgba($color: #000000, $alpha: 0.6);
-		// background: url('@/assets/images/navleft.png') no-repeat;
-		background-size: 100% 100%;
-		z-index: 1;
-		left: 42px;
-		top: 37%;
-		color: white;
-		// transform: translateY(-80%);
-		line-height: 29px;
-		.datetime{
-			font-size: 31px;
-			font-family: 'MyFont2';
-			font-weight: 500;
-			width: 120px;
-			margin-right: 10px;
-			color: #FFFFFF;
-			text-shadow: 0px 0px 10px #1380FF;
-		}
-	}
-	&-right {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		position:absolute;
-		right: 42px;
-		top: 37%;
-		z-index: 1;
-		width: 410px;
-		font-weight: 500;
-		height: 34px;
-		line-height: 29px;
-		// background: rgba($color: #000000, $alpha: 0.6);
-		// background: url('@/assets/images/navright.png') no-repeat;
-		background-size: 100% 100%;
-		font-size: 16px;
-		color: #ECF6FF;
-		// line-height: 19px;
-		.text1{
-			font-size: 31px;
-			font-family: 'MyFont2';
-			font-weight: 500;
-			color: #FFFFFF;
-			text-shadow: 0px 0px 10px #1380FF;
-		}
-		.text2{
-			font-size: 10px;
-			font-family: 'MyFont1';
-			font-weight: 400;
-			color: #FFFFFF;
-			text-shadow: 0px 0px 10px #1380FF;
-		}
-	}
+<style scoped>
+.weather-card {
+  position: absolute;
+  top: 120px;   /* 距离屏幕上边 */
+  left: 20px;  /* 距离屏幕左边 */
+	z-index: 1111;
+  width: 320px;
+  padding: 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #83283a, #da5c60);
+  color: #fff;
+  font-family: "Microsoft YaHei", sans-serif;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
 }
 
-@keyframes fade {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
+.weather-header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+.city {
+  font-size: 20px;
+  font-weight: bold;
+}
+.date {
+  font-size: 14px;
+}
+.now-time {
+  font-size: 14px;
+  margin-top: 2px;
+}
+.update {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.weather-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.wea-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wea-icon {
+  width: 48px;
+  height: 48px;
+}
+.tem {
+  font-size: 32px;
+  font-weight: bold;
+}
+.wea {
+  font-size: 16px;
+}
+.tem-range {
+  font-size: 14px;
+  margin-top: 8px;
+}
+.weather-footer {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  font-size: 13px;
+}
+.footer-item {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px;
+  border-radius: 6px;
 }
 </style>

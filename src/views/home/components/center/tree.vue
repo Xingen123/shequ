@@ -381,11 +381,11 @@ watch(checkedKeys, (val) => {
 
 // -------------------- 初始化 --------------------
 onMounted(async () => {
-  // const data = await getShequTreeData();
+  const data = await getShequTreeData();
   // 生成唯一key
-  const transformed =  generateCommunities() 
-  //  transformCommunityTreeAutoKey3D(data);
-  // tableData.value = data.communityVillage
+  // const transformed =  generateCommunities() 
+   const transformed =  transformCommunityTreeAutoKey3D(data);
+  tableData.value = data.communityVillage
   treeData.value = transformed;
   originalTreeData.value = transformed; // 保存原始树数据
   expandedKeys.value = getAllKeys(transformed);
@@ -399,8 +399,8 @@ onMounted(async () => {
 <style scoped>
 .tree-box {
   position: fixed;
-  top: 100px;
-  left: 20px;
+  top: 120px;
+  right: 20px;
   z-index: 1;
   /* background: #7595a2; */
   padding: 10px;
