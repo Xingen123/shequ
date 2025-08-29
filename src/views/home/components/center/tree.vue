@@ -32,7 +32,7 @@
   </div>
 </div>
 <div class="bottom-table">
-  <a-table size="small" class="custom-table" :scroll="{ x: 1000, y: 120 }" :row-class-name="rowClassName" :columns="columns" :pagination="false" :data-source="tableData" bordered>
+  <a-table size="small" class="custom-table" :scroll="{ x: 1000, y: 120 }"  :columns="columns" :pagination="false" :data-source="tableData" bordered>
   </a-table>
 </div>
 </div>
@@ -55,7 +55,6 @@ const checkedKeys =ref<string[]>([]);
 const selectedNodeJSON = ref<string>('');
 const searchValue = ref('');
 const tableData = ref([]);
-
 const columns = [
    { title: '小区名称', dataIndex: 'village_name', width: 150,align: "center"},
   { title: '小区地址', dataIndex: 'address', width: 500,align: "center",ellipsis: true },
@@ -69,6 +68,30 @@ const columns = [
   { title: '楼栋数', dataIndex: 'building_count', width: 100,align: "center"},
   { title: '户数', dataIndex: 'household_count', width: 100,align: "center"},
 ];
+// 原始楼层数据
+const baseFloors = [
+  {
+    "floorIndex": 1,
+    "floorName": "1层",
+    "size": { "width": 20, "height": 15 }, 
+    "points": [
+      {
+        "id": "H101",
+        "type": "household",
+        "name": "1-101",
+        "position": { "x": 3, "y": 4 },
+        "detail": { "owner": "张三", "area": "85㎡", "status": "已入住" }
+      },
+      {
+        "id": "H102",
+        "type": "household",
+        "name": "1-102",
+        "position": { "x": 9, "y": 4 },
+        "detail": { "owner": "李四", "area": "90㎡", "status": "空置" }
+      }
+    ]
+  }
+];
 
 const emit = defineEmits(['onChange','clickTarget'])
 // -------------------- 工具函数 --------------------
@@ -76,6 +99,31 @@ function generateKey() {
   return `key-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
 
+// 生成 30 层
+function generateFloors(baseFloors, totalFloors = 30) {
+  const floors = [];
+  const template = baseFloors[0]; // 假设只用第一层模板
+
+  for (let i = 1; i <= totalFloors; i++) {
+    // 克隆点位
+    const points = template.points.map(p => ({
+      id: p.id + "_" + i,           // 保证每层点位 id 唯一
+      type: p.type,
+      name: `${i}-${p.name.split('-')[1]}`, // 例如 "1-101" → "2-101"
+      position: { ...p.position },
+      detail: { ...p.detail }
+    }));
+
+    floors.push({
+      floorIndex: i,
+      floorName: `${i}层`,
+      size: { ...template.size },
+      points
+    });
+  }
+
+  return floors;
+}
 // 高德 GCJ-02 坐标 → WGS-84
 function gcj02ToWgs84(lon: number, lat: number): [number, number] {
   return coordtransform.gcj02towgs84(lon, lat);
@@ -347,6 +395,7 @@ function generateCommunities() {
         35.11910039019295
     ]
 ]
+
   const communities = [
    {
     title: "奥体华府",
@@ -358,9 +407,11 @@ function generateCommunities() {
     children: Array.from({ length: 26 }).map((_, i) => ({
       title: `奥体华府 ${i + 1} 号楼`,
       type: 3,
+      "size": { "width": 20, "height": 15 }, 
+      floors:generateFloors(baseFloors, 30),
       position: [arrLd[i][0],arrLd[i][1]],
       leaders: [`楼长${i + 1}`],
-      address: `1层\n101号：户主 张三，人数 2，面积 100㎡，电话 138****1111，电梯旁\n102号：户主 李四，人数 3，面积 105㎡，电话 139****2222，朝南\n2层\n201号：户主 王五，人数 4，面积 110㎡，电话 137****3333，靠近楼梯\n202号：户主 赵六，人数 2，面积 108㎡，电话 136****4444，朝北`,
+      address: `1层\n101号：户主 张三`,
       key: `0-${i}` // 子集 key = 父索引 + '-' + 子索引
     }))
   }

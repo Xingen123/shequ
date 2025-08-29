@@ -1,6 +1,12 @@
 <template>
 	<div class="es-center">
     <Headers v-show="showTreeBox"></Headers>
+     <div class="button-panel">
+         <img   v-show="activeLou?.model?.show" src="../../assets/img/lou1.png" @click="showModalLou"/>
+         <img v-show="!activeLou?.model?.show"  src="../../assets/img/lou.png"  @click="showModalLou"/>
+          <img   v-show="lcLayerEntity?.show" src="../../assets/img/louceng1.png" @click="showModalLouCeng"/>
+          <img v-show="!lcLayerEntity?.show"  src="../../assets/img/louceng.png"  @click="showModalLouCeng"/>
+      </div>
     <div class="header">
       {{activeShequ}}
     </div>
@@ -14,6 +20,24 @@
           @clickTarget="clickTarget"
         />
       </div>
+       <a-modal center v-model:open="open" title="查看楼层" @ok="handleOk" >
+        <div style="width:100%;display:flex; justify-content:center;">
+          <a-input-number
+            v-model:value="loucengNum"
+            :min="1"
+            :max="30"
+            :default-value="1"
+            addon-after="层"
+          />
+        </div>
+         <template #footer>
+          <div style="width:100%;display:flex; justify-content:center;">
+            <a-button  @click="open = !open">关闭</a-button>
+            <a-button  type="primary"  @click="handleOk">查看</a-button>
+          </div>
+        </template>
+      </a-modal>
+     
 		<vc-viewer
 	  fullscreenElement="app"
 	  :info-box="false"
@@ -48,22 +72,62 @@
   import Headers from '@/components/header/index.vue'
 	import CesiumTree from './components/center/tree.vue'
   import { onMounted,ref } from 'vue'
+  import { height } from '@/utils/useResize';
 	let _viewer = null
 	let highlightedModel = null; // 保存高亮中的模型
   let originalColor = null; // 默认颜色
   let titleLabelList = []
- const positions = []; // 存储经纬度数组
+  const positions = []; // 存储经纬度数组
+  // 全局存储
+  let lcLayerEntity = ref(null);
+  let lcPointsEntity =  new Map();
 
   let highlightedPolygon: any = null;
-  const showTreeBox = ref(true)
+  const showTreeBox = ref(false)
   const activeShequ = ref('')
-// key 就是 node.key
-const polygonMap = new Map();
-const modelMap = new Map();
-const labelMap = new Map();
-const clickLabelMap = new Map();
+  // key 就是 node.key
+  const polygonMap = new Map();
+  const modelMap = new Map();
+  const labelMap = new Map();
+  const clickLabelMap = new Map();
+  // 选中的楼
+  const activeLou = ref(null)
 
 	const showTree = ref(false)
+  // 楼层弹窗
+  const open = ref(false);
+  const loucengNum = ref(1)
+  const showModalLou = () => {
+     activeLou.value.model.show = !activeLou.value.model.show 
+     lcLayerEntity.value.show = false
+     lcPointsEntity.forEach(item=>{
+      item.point.show = false
+     })
+  };
+  const showModalLouCeng = () => {
+    lcLayerEntity.value.show = !lcLayerEntity.value.show
+    activeLou.value.model.show = false
+     lcPointsEntity.forEach(item=>{
+      item.point.show = !item.point.show
+     })
+  };
+  const showModal = () => {
+    open.value = true;
+  };
+  const handleOk = (e: MouseEvent) => {
+    open.value = false;
+    activeLou.value.model.show = false
+    if(loucengNum.value){
+      drawFloorPlan()
+    }
+    if(!activeLou.value.node) return 
+    // let louLabelEntity = labelMap.get(activeLou.value.node.key)
+    let louClickLabelEntity = clickLabelMap.get(activeLou.value.node.key)
+    // louLabelEntity.entity.show = false
+    louClickLabelEntity.show = false
+    // console.log(`output->`, activeLou.value)
+
+  };
 	const onViewerReady = ({viewer,Cesium}) =>{
 		_viewer = viewer
 		showTree.value = true
@@ -146,7 +210,6 @@ function traverseAndRender(nodes) {
         }
       }
     }
-
     // === 楼栋 ===
     if (node.type === 3) {
   const [lon, lat] = node.position;
@@ -160,24 +223,8 @@ function traverseAndRender(nodes) {
       scale: 0.8,
     });
     model.id = node.key;
-// 加载完成后再调属性
-// model.readyPromise.then(() => {
-//   // 方法 1: 整体叠加颜色（推荐）
-//   // model.color = Cesium.Color.WHITE.withAlpha(1.0); // 白色会提亮
-//   // model.colorBlendMode = Cesium.ColorBlendMode.MIX; 
-//   // model.colorBlendAmount = 1; // 0~1 调节亮度强度
-
-//   // // 方法 2: 环境光加强
-//   // model.imageBasedLightingFactor = new Cesium.Cartesian2(2.0, 2.0); // 默认 (1,1)
-
-//   // // 方法 3: 光源颜色加强
-//   // model.lightColor = new Cesium.Cartesian3(1.2, 1.2, 1.2); // RGB >1 也可以，越亮
-// });
-    // 💡 增加亮度/自发光：使用 colorBlendMode + colorBlendAmount
-
     // 添加到场景
     _viewer.scene.primitives.add(model);
-
     // 标签
     const titleLabel = _viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(lon, lat, height + 10),
@@ -248,7 +295,7 @@ function flyToNode(node) {
       offset: new Cesium.HeadingPitchRange(
         Cesium.Math.toRadians(0),   // 朝向
         Cesium.Math.toRadians(-30), // 俯角
-        400                         // 距离 entity 的相机距离
+        100                         // 距离 entity 的相机距离
       )
     });
 }
@@ -258,7 +305,8 @@ function flyToNode(node) {
 
 // Tree 点击触发
 function clickTarget(node) {
-  console.log(`output->`,node)
+
+  // console.log(`output->`,node)
   if (!_viewer || !node.position.length) return;
   // 查找对应模型
   let targetModel = null;
@@ -282,33 +330,31 @@ function clickTarget(node) {
 
 // 全局或模块内维护一个 Map
 function addOrUpdateLabelById(id, type) {
+  // 先清空楼层
+  clearLcEntity()
   if (type == 1) return;
-
-  let { node } = type == 3 ? modelMap.get(id) : polygonMap.get(id);
-  if (!node) return;
-
+  let entity = type == 3 ? modelMap.get(id) : polygonMap.get(id);
+  if (!entity || !entity.node) return;
+  activeLou.value = entity
+  let {node} = entity
   let { position, address } = node;
   let [lon, lat] = position;
 
   // 判断当前是否已存在
   if (clickLabelMap.has(id)) {
     const existing = clickLabelMap.get(id);
-
     // 如果当前是显示状态 → 点击后隐藏
     if (existing.show) {
       existing.show = false;
       return null;
     }
-
     // 如果当前是隐藏状态 → 点击后显示，并隐藏其他
     clickLabelMap.forEach((entity) => (entity.show = false));
     existing.show = true;
     return existing;
   }
-
   // 如果之前没有，就新建一个，并隐藏其他
   clickLabelMap.forEach((entity) => (entity.show = false));
-
   const labelEntity = _viewer.entities.add({
     id: `click-label-${id}`,
     position: Cesium.Cartesian3.fromDegrees(lon, lat, 1),
@@ -316,21 +362,18 @@ function addOrUpdateLabelById(id, type) {
       text: address,
       font: "14px sans-serif",
       fillColor: Cesium.Color.BLACK,
-      showBackground: true,
       outlineColor: Cesium.Color.WHITE,
       outlineWidth: 2,
       backgroundColor: Cesium.Color.YELLOW.withAlpha(1),
+      showBackground: true,
       distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 80000),
       disableDepthTestDistance: Number.POSITIVE_INFINITY,
     },
     show: true,
   });
-
   clickLabelMap.set(id, labelEntity);
-
   return labelEntity;
 }
-
 
 // 简单判断是否是移动端
 function isMobile() {
@@ -338,80 +381,214 @@ function isMobile() {
     navigator.userAgent
   );
 }
+
 function addClickHandler() {
   const handler = new Cesium.ScreenSpaceEventHandler(_viewer.scene.canvas);
-handler.setInputAction(function (click) {
-    // 将屏幕坐标转换为地理坐标
-    const cartesian = _viewer.camera.pickEllipsoid(click.position, _viewer.scene.globe.ellipsoid);
-    if (cartesian) {
-        // 转换为经纬度
-        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-        const longitude = Cesium.Math.toDegrees(cartographic.longitude);
-        const latitude = Cesium.Math.toDegrees(cartographic.latitude);
-        // 存入数组
-        positions.push([longitude, latitude]);
+// handler.setInputAction(function (click) {
+//     // 将屏幕坐标转换为地理坐标
+//     const cartesian = _viewer.camera.pickEllipsoid(click.position, _viewer.scene.globe.ellipsoid);
+//     if (cartesian) {
+//         // 转换为经纬度
+//         const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+//         const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+//         const latitude = Cesium.Math.toDegrees(cartographic.latitude);
+//         // 存入数组
+//         positions.push([longitude, latitude]);
 
-        console.log('点击点：', positions);
-    }
-}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+//         console.log('点击点：', positions);
+//     }
+// }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   handler.setInputAction(function (movement) {
-    const picked = _viewer.scene.pick(movement.position);
-    if (Cesium.defined(picked) && picked.id && picked.id.polygon) {
-      const entity = picked.id;
-      // 如果是社区
-      if(entity._type == 1) return 
-      addOrUpdateLabelById(entity.id,entity._type)
-      if(isMobile()) return
-      // 如果之前有高亮，恢复原始材质
-      if (highlightedPolygon && highlightedPolygon !== entity) {
-        highlightedPolygon.polygon.material = highlightedPolygon._originalMaterial;
-        highlightedPolygon = null;
-      }
+  const picked = _viewer.scene.pick(movement.position);
+  if (!Cesium.defined(picked)) return;
 
-      // 如果点击同一个，取消高亮
-      if (highlightedPolygon === entity) {
-        entity.polygon.material = entity._originalMaterial;
-        highlightedPolygon = null;
-        return;
-      }
+  // 1. 先处理 point
+  if (picked.id && picked.id.id && String(picked.id.id).startsWith("point-")) {
+    const entity = picked.id;
+    let {point,node} = lcPointsEntity.get(entity.id)
+    if(point && node){
+      point.label.text = point.label.text == node.name ? `${node.name}姓名：${node.detail.owner}` : node.name
+    }
+    console.log(point);
+    // addOrUpdateLabelById(entity.id, entity._type || "point");
+    // showPointModal && showPointModal(entity); // 假如你要弹出 point 详情
+    return; // 直接返回，阻止冒泡
+  }
 
-      // 设置高亮材质
-      entity.polygon.material = new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW.withAlpha(0.5));
-      highlightedPolygon = entity;
+  // 2. 再处理模型
+  if (picked.primitive instanceof Cesium.Model) {
+    const model = picked.primitive;
+    console.log("点击模型:", model.id);
+    if (!model.show) return;
+    addOrUpdateLabelById(model.id, 3);
+    if (isMobile()) return;
+
+    if (highlightedModel === model) {
+      highlightedModel.color = originalColor;
+      highlightedModel = null;
+      return;
+    }
+    if (highlightedModel) {
+      highlightedModel.color = originalColor;
+    }
+    highlightedModel = model;
+    highlightedModel.color = Cesium.Color.YELLOW.withAlpha(0.9);
+    showModal && showModal();
+    return; // 不再继续
+  }
+
+  // 3. 最后处理 Polygon
+  if (picked.id && picked.id.polygon && !lcLayerEntity.value.show) {
+    const entity = picked.id;
+    if (entity._type == 1) return;
+
+    addOrUpdateLabelById(entity.id, entity._type);
+    if (isMobile()) return;
+
+    // 清除上一个高亮
+    if (highlightedPolygon && highlightedPolygon !== entity) {
+      highlightedPolygon.polygon.material = highlightedPolygon._originalMaterial;
+      highlightedPolygon = null;
     }
 
-    if (Cesium.defined(picked) && picked.primitive instanceof Cesium.Model) {
-      const model = picked.primitive;
-      
-      addOrUpdateLabelById(model.id,3)
-       if(isMobile()) return
-      // ✅ 如果点击的是已经高亮的模型，则取消高亮
-      if (highlightedModel === model) {
-        highlightedModel.color = originalColor;
-        highlightedModel = null;
-        return;
-      }
-      // ✅ 取消之前的高亮
-      if (highlightedModel) {
-        highlightedModel.color = originalColor;
-      }
-
-      // ✅ 设置新的高亮
-      highlightedModel = model;
-      highlightedModel.color = Cesium.Color.YELLOW.withAlpha(0.9);
-    } else {
-      // 点击空白区域时，取消高亮
-      if (highlightedModel) {
-        highlightedModel.color = originalColor;
-        highlightedModel = null;
-      }
+    // 点击同一个取消高亮
+    if (highlightedPolygon === entity) {
+      entity.polygon.material = entity._originalMaterial;
+      highlightedPolygon = null;
+      return;
     }
-  }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    // 设置高亮
+    entity.polygon.material = new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW.withAlpha(0.5));
+    highlightedPolygon = entity;
+  }
+}, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
 }
+function computeRectangleCorners(centerLon, centerLat, widthMeters, heightMeters) {
+  const R = 6378137; // WGS84 地球半径
+  // 一度纬度对应的米数大约
+  const metersPerDegLat = 111320;
+  // 一度经度对应的米数要乘 cos(lat)
+  const metersPerDegLon = 111320 * Math.cos(centerLat * Math.PI / 180);
+
+  const dLat = (heightMeters / 2) / metersPerDegLat;
+  const dLon = (widthMeters / 2) / metersPerDegLon;
+
+  return {
+    topLeft: [centerLon - dLon, centerLat + dLat],
+    topRight: [centerLon + dLon, centerLat + dLat],
+    bottomRight: [centerLon + dLon, centerLat - dLat],
+    bottomLeft: [centerLon - dLon, centerLat - dLat],
+  };
+}
+function addPolygon(key,lon, lat, width, height) {
+  const corners = computeRectangleCorners(lon, lat, width, height)
+  // 清除旧的
+  if (lcLayerEntity.value) {
+    _viewer.entities.remove(lcLayerEntity.value);
+  }
+  let lcentity = _viewer.entities.add({
+    polygon: {
+      hierarchy: Cesium.Cartesian3.fromDegreesArray([
+        corners.topLeft[0], corners.topLeft[1],
+        corners.topRight[0], corners.topRight[1],
+        corners.bottomRight[0], corners.bottomRight[1],
+        corners.bottomLeft[0], corners.bottomLeft[1],
+      ]),
+      material: Cesium.Color.fromCssColorString('#4d7fff').withAlpha(0.5),
+      // outline: true,
+      // outlineColor: Cesium.Color.YELLOW,
+      height: loucengNum.value + 1, // 单位：米，抬高一点
+      disableDepthTestDistance:Number.POSITIVE_INFINITY,
+    }
+  });
+   flyToNode({key})
+   lcLayerEntity.value = lcentity
+   console.log(`output->`,lcLayerEntity.value)
+
+}
+// 清空楼层
+function clearLcEntity(){
+  if(activeLou.value && activeLou.value.model){
+    console.log(`output->`, activeLou.value)
+    activeLou.value.model.show = true
+  }
+  _viewer.entities.remove(lcLayerEntity.value);
+  lcPointsEntity.forEach(item=>{
+     _viewer.entities.remove(item.point);
+  })
+  lcLayerEntity.value = null;
+  lcPointsEntity = new Map()
+}
+function localToLonLat(center, offset) {
+  const { lon, lat } = center; // 楼栋中心点
+  const { x, y } = offset;     // 局部点位 (米)
+
+  const metersPerDegreeLat = 110540; 
+  const metersPerDegreeLon = 111320 * Math.cos(Cesium.Math.toRadians(lat));
+
+  const newLon = lon + x / metersPerDegreeLon;
+  const newLat = lat + y / metersPerDegreeLat;
+
+  return [newLon, newLat];
+}
+
+// ✅ 遍历楼层 points 生成点位
+function generateFloorPoints(center, floor) {
+  return floor.points.map(p => {
+    const [lon, lat] = localToLonLat(center, p.position);
+    return {
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      lon, lat,
+      detail: p.detail
+    };
+  });
+}
+// 绘制楼层平面图函数
+function drawFloorPlan() {
+  const {floors,position,size,key} = activeLou.value.node
+  const [lon,lat] = position
+  const COLORS = {
+      household: Cesium.Color.fromCssColorString('#00ffa3'),
+      elevator:  Cesium.Color.fromCssColorString('#ffd400'),
+      hydrant:   Cesium.Color.fromCssColorString('#ff4d4f')
+  };
+  addPolygon(key, lon, lat, size.width, size.height)
+   // 转换为 Cesium 点位
+  const convertedPoints =  generateFloorPoints({lon, lat}, floors[loucengNum.value - 1])
+  // ✅ 根据楼层号生成点位
+  convertedPoints.forEach(p => {
+   let lcPoint = _viewer.entities.add({
+      id:'point-' + p.id,
+      position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, loucengNum.value + 0.5),
+        point: {
+          pixelSize: 16,
+          color: COLORS[p.type].withAlpha(0.95),
+          outlineColor: Cesium.Color.fromCssColorString('#0b1220'),
+          outlineWidth: 1,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+        label: {
+          text: p.name,
+          font: '13px "Microsoft YaHei", PingFangSC, sans-serif',
+          backgroundColor: Cesium.Color.YELLOW.withAlpha(1),
+          showBackground: true,
+          fillColor: Cesium.Color.BLACK,
+          pixelOffset: new Cesium.Cartesian2(0, -36),
+          verticalOrigin: Cesium.VerticalOrigin.TOP,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        },
+    })
+    lcPointsEntity.set('point-' + p.id, { point:lcPoint, node:p});
+  });
+}
+
 const toggleTree = () => {
   showTreeBox.value = !showTreeBox.value
 }
-
 	onMounted(() => {
 	
 	})
@@ -422,6 +599,35 @@ const toggleTree = () => {
 	position: relative;
 	width: 100%;
 	height:100%;
+  .button-panel{
+    width:40px;
+    height:  150px;
+    background: linear-gradient(135deg, #83283a, #da5c60);
+    border-radius: 20px;
+    // box-shadow:;
+    position: absolute;
+    bottom: 200px;
+    right: 10px;
+    // left: 0;
+    margin: 0 auto;
+    z-index: 1111;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    img{
+      width: 30px;
+      height: 30px;
+      cursor: pointer;
+      transition: all .4s;
+    }
+    img:hover{
+      transform: scale(1.1);
+    }
+    img:active{
+      transform: scale(1.1);
+    }
+  }
   .toggle-btn{
     position: absolute;
     top: 10px;
