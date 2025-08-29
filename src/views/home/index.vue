@@ -72,10 +72,13 @@
   import Headers from '@/components/header/index.vue'
 	import CesiumTree from './components/center/tree.vue'
   import { onMounted,ref } from 'vue'
+  import SingleBuildingRuler from './components/center/SingleBuildingRuler'
   import { height } from '@/utils/useResize';
 	let _viewer = null
 	let highlightedModel = null; // 保存高亮中的模型
   let originalColor = null; // 默认颜色
+
+  let singleRuler = null //刻度尺
   let titleLabelList = []
   const positions = []; // 存储经纬度数组
   // 全局存储
@@ -133,6 +136,8 @@
 		showTree.value = true
     viewer.scene.globe.enableLighting = true; // 开启光照
 		addClickHandler()
+   singleRuler = new SingleBuildingRuler(_viewer);
+
     originalColor = Cesium.Color.WHITE; // 默认颜色
     viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(
       Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK
@@ -499,7 +504,7 @@ function addPolygon(key,lon, lat, width, height) {
       material: Cesium.Color.fromCssColorString('#4d7fff').withAlpha(0.5),
       // outline: true,
       // outlineColor: Cesium.Color.YELLOW,
-      height: loucengNum.value + 1, // 单位：米，抬高一点
+      height: loucengNum.value * 3, // 高度 = 楼层数 * 每层高度
       disableDepthTestDistance:Number.POSITIVE_INFINITY,
     }
   });
@@ -551,6 +556,20 @@ function generateFloorPoints(center, floor) {
 function drawFloorPlan() {
   const {floors,position,size,key} = activeLou.value.node
   const [lon,lat] = position
+
+/**
+ * 相机飞到楼栋刻度尺上方并注视楼栋中心
+ * @param {Cesium.Viewer} viewer Cesium Viewer 实例
+ * @param {number} lon 楼栋中心经度
+ * @param {number} lat 楼栋中心纬度
+ * @param {number} baseHeight 楼底高度（米）
+ * @param {number} floors 楼层数
+ * @param {number} floorHeight 每层高度（米）
+ */
+  // 绘制楼1并飞过去
+  singleRuler.drawRuler('building1', lon,lat, 0, 30, 3, 5);
+  // singleRuler.flyTo(116.3975, 39.9087, 0, 18, 3);
+
   const COLORS = {
       household: Cesium.Color.fromCssColorString('#00ffa3'),
       elevator:  Cesium.Color.fromCssColorString('#ffd400'),
@@ -563,7 +582,7 @@ function drawFloorPlan() {
   convertedPoints.forEach(p => {
    let lcPoint = _viewer.entities.add({
       id:'point-' + p.id,
-      position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, loucengNum.value + 0.5),
+      position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, loucengNum.value * 3),
         point: {
           pixelSize: 16,
           color: COLORS[p.type].withAlpha(0.95),
