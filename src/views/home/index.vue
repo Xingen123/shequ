@@ -1,6 +1,6 @@
 <template>
 	<div class="es-center">
-    <Headers v-show="showTreeBox"></Headers>
+    <!-- <Headers v-show="showTreeBox"></Headers> -->
      <div class="button-panel">
          <img   v-show="activeLou?.model?.show" src="../../assets/img/lou1.png" @click="showModalLou"/>
          <img v-show="!activeLou?.model?.show"  src="../../assets/img/lou.png"  @click="showModalLou"/>
@@ -25,7 +25,7 @@
           <a-input-number
             v-model:value="loucengNum"
             :min="1"
-            :max="30"
+            :max="maxNum"
             :default-value="1"
             addon-after="层"
           />
@@ -69,11 +69,12 @@
 </template>
 
 <script setup lang='ts'>
-  import Headers from '@/components/header/index.vue'
+  // import Headers from '@/components/header/index.vue'
 	import CesiumTree from './components/center/tree.vue'
   import { onMounted,ref } from 'vue'
   import SingleBuildingRuler from './components/center/SingleBuildingRuler'
-  import { height } from '@/utils/useResize';
+  // import { height } from '@/utils/useResize';
+  import { getFloorInfo } from '@/api/apiList.ts';
 	let _viewer = null
 	let highlightedModel = null; // 保存高亮中的模型
   let originalColor = null; // 默认颜色
@@ -81,6 +82,8 @@
   let singleRuler = null //刻度尺
   let titleLabelList = []
   const positions = []; // 存储经纬度数组
+  // xy轴
+  let xyEntitys = []
   // 全局存储
   let lcLayerEntity = ref(null);
   let lcPointsEntity =  new Map();
@@ -100,6 +103,8 @@
   // 楼层弹窗
   const open = ref(false);
   const loucengNum = ref(1)
+  const maxNum = ref(100)
+  
   const showModalLou = () => {
      activeLou.value.model.show = !activeLou.value.model.show 
      lcLayerEntity.value.show = false
@@ -116,6 +121,9 @@
   };
   const showModal = () => {
     open.value = true;
+    console.log(`output->`,activeLou.value)
+  // maxNum.value = floors&& floors.length ||  1
+
   };
   const handleOk = (e: MouseEvent) => {
     open.value = false;
@@ -412,18 +420,16 @@ function addClickHandler() {
     const entity = picked.id;
     let {point,node} = lcPointsEntity.get(entity.id)
     if(point && node){
-      point.label.text = point.label.text == node.name ? `${node.name}姓名：${node.detail.owner}` : node.name
+      // console.log(`output->`,node)
+      point.label.text = (point.label.text == node.name && node.detali && node.detali.length > 0)  ? `${node.name}\n` + node.detali.map(d => `姓名：${d.user_name}, 电话：${d.user_phone}`).join('\n') : node.name
     }
-    console.log(point);
-    // addOrUpdateLabelById(entity.id, entity._type || "point");
-    // showPointModal && showPointModal(entity); // 假如你要弹出 point 详情
     return; // 直接返回，阻止冒泡
   }
 
   // 2. 再处理模型
   if (picked.primitive instanceof Cesium.Model) {
     const model = picked.primitive;
-    console.log("点击模型:", model.id);
+    // console.log("点击模型:", model.id);
     if (!model.show) return;
     addOrUpdateLabelById(model.id, 3);
     if (isMobile()) return;
@@ -487,11 +493,25 @@ function computeRectangleCorners(centerLon, centerLat, widthMeters, heightMeters
     bottomLeft: [centerLon - dLon, centerLat - dLat],
   };
 }
-function addPolygon(key,lon, lat, width, height) {
-  const corners = computeRectangleCorners(lon, lat, width, height)
+// 转换偏移米到经纬度
+function offsetToLonLat(center, offset) {
+  const metersPerDegreeLat = 110540;
+  const metersPerDegreeLon = 111320 * Math.cos(Cesium.Math.toRadians(center.lat));
+  return [
+    center.lon + offset.x / metersPerDegreeLon,
+    center.lat + offset.y / metersPerDegreeLat
+  ];
+}
+function addPolygon(key,width, size_height,corners) {
   // 清除旧的
   if (lcLayerEntity.value) {
     _viewer.entities.remove(lcLayerEntity.value);
+  }
+  if(xyEntitys.length){
+     xyEntitys.forEach(item=>{
+      _viewer.entities.remove(item);
+    })
+    xyEntitys = []
   }
   let lcentity = _viewer.entities.add({
     polygon: {
@@ -502,21 +522,78 @@ function addPolygon(key,lon, lat, width, height) {
         corners.bottomLeft[0], corners.bottomLeft[1],
       ]),
       material: Cesium.Color.fromCssColorString('#4d7fff').withAlpha(0.5),
-      // outline: true,
-      // outlineColor: Cesium.Color.YELLOW,
       height: loucengNum.value * 3, // 高度 = 楼层数 * 每层高度
       disableDepthTestDistance:Number.POSITIVE_INFINITY,
     }
   });
    flyToNode({key})
    lcLayerEntity.value = lcentity
-   console.log(`output->`,lcLayerEntity.value)
+  
+        // 假设 corners 是楼层四角经纬度
+    const center = {
+      lon: corners.bottomLeft[0],
+      lat: corners.bottomLeft[1]
+    };
 
+// 楼层高度
+const height = loucengNum.value * 3;
+// X 轴 (红色) : 东方向
+const xEnd = offsetToLonLat(center, { x: width, y: 0 });
+// X 轴 (红色) : 东方向
+ let xline = _viewer.entities.add({
+  name:key,
+  polyline: {
+    positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+      center.lon, center.lat, height,
+      xEnd[0], xEnd[1], height
+    ]),
+    width: 2,
+    material: Cesium.Color.RED
+  }
+});
+
+// Y 轴 (绿色) : 北方向
+const yEnd = offsetToLonLat(center, { x: 0, y: size_height });
+let yline = _viewer.entities.add({
+  name:key,
+  polyline: {
+    positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+      center.lon, center.lat, height,
+      yEnd[0], yEnd[1], height
+    ]),
+    width: 2,
+    material: Cesium.Color.GREEN
+  }
+});
+
+// 可选：添加文字标注
+let xlabel =_viewer.entities.add({
+  name:key,
+  position: Cesium.Cartesian3.fromDegrees(xEnd[0], xEnd[1], height),
+  label: {
+    text: width + "米",
+    fillColor: Cesium.Color.RED,
+    font: "16px sans-serif",
+    verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+  }
+});
+
+let ylabel = _viewer.entities.add({
+  name:key,
+  position: Cesium.Cartesian3.fromDegrees(yEnd[0], yEnd[1], height),
+  label: {
+    text: size_height + "米",
+    fillColor: Cesium.Color.GREEN,
+    font: "16px sans-serif",
+    verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+  }
+});
+xyEntitys.push(xline,yline,xlabel,ylabel)
+// console.log(`output->`,xyEntitys)
 }
 // 清空楼层
 function clearLcEntity(){
   if(activeLou.value && activeLou.value.model){
-    console.log(`output->`, activeLou.value)
     activeLou.value.model.show = true
   }
   _viewer.entities.remove(lcLayerEntity.value);
@@ -533,33 +610,41 @@ function localToLonLat(center, offset) {
   const metersPerDegreeLat = 110540; 
   const metersPerDegreeLon = 111320 * Math.cos(Cesium.Math.toRadians(lat));
 
-  const newLon = lon + x / metersPerDegreeLon;
-  const newLat = lat + y / metersPerDegreeLat;
+  const newLon = lon + Number(x) / metersPerDegreeLon;
+  const newLat = lat + Number(y) / metersPerDegreeLat;
 
   return [newLon, newLat];
 }
 
 // ✅ 遍历楼层 points 生成点位
-function generateFloorPoints(center, floor) {
-  return floor.points.map(p => {
+function generateFloorPoints(center, points) {
+  
+  return points.map(p => {
     const [lon, lat] = localToLonLat(center, p.position);
     return {
+      ...p,
       id: p.id,
       name: p.name,
       type: p.type,
-      lon, lat,
-      detail: p.detail
+      lon, 
+      lat,
     };
   });
 }
 // 绘制楼层平面图函数
-function drawFloorPlan() {
-  const {floors,position,size,key} = activeLou.value.node
+async function drawFloorPlan(node) {
+  const {position,key,id} = activeLou.value.node
+  const {floors,size_with,size_height,points} = await getFloorInfo({building_id:id})
   const [lon,lat] = position
-
-/**
+  const COLORS = {
+      1: Cesium.Color.fromCssColorString('#00ffa3'),
+      2:  Cesium.Color.fromCssColorString('#ffd400'),
+      3:   Cesium.Color.fromCssColorString('#ff4d4f')
+  };
+  const corners = computeRectangleCorners(lon, lat, Number(size_with), Number(size_height))
+  /**
  * 相机飞到楼栋刻度尺上方并注视楼栋中心
- * @param {Cesium.Viewer} viewer Cesium Viewer 实例
+ * @param {building1} id
  * @param {number} lon 楼栋中心经度
  * @param {number} lat 楼栋中心纬度
  * @param {number} baseHeight 楼底高度（米）
@@ -567,19 +652,13 @@ function drawFloorPlan() {
  * @param {number} floorHeight 每层高度（米）
  */
   // 绘制楼1并飞过去
-  singleRuler.drawRuler('building1', lon,lat, 0, 30, 3, 5);
-  // singleRuler.flyTo(116.3975, 39.9087, 0, 18, 3);
-
-  const COLORS = {
-      household: Cesium.Color.fromCssColorString('#00ffa3'),
-      elevator:  Cesium.Color.fromCssColorString('#ffd400'),
-      hydrant:   Cesium.Color.fromCssColorString('#ff4d4f')
-  };
-  addPolygon(key, lon, lat, size.width, size.height)
+  singleRuler.drawRuler('building1', lon,lat, 0, floors.length,3, Number(size_with)/2);
+  addPolygon(key,  Number(size_with), Number(size_height),corners)
    // 转换为 Cesium 点位
-  const convertedPoints =  generateFloorPoints({lon, lat}, floors[loucengNum.value - 1])
+  const convertedPoints = generateFloorPoints({lon:corners.bottomLeft[0], lat:corners.bottomLeft[1]}, points)
   // ✅ 根据楼层号生成点位
   convertedPoints.forEach(p => {
+    // console.log(`output->`,p)
    let lcPoint = _viewer.entities.add({
       id:'point-' + p.id,
       position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat, loucengNum.value * 3),
@@ -592,13 +671,17 @@ function drawFloorPlan() {
         },
         label: {
           text: p.name,
-          font: '13px "Microsoft YaHei", PingFangSC, sans-serif',
-          backgroundColor: Cesium.Color.YELLOW.withAlpha(1),
-          showBackground: true,
-          fillColor: Cesium.Color.BLACK,
-          pixelOffset: new Cesium.Cartesian2(0, -36),
-          verticalOrigin: Cesium.VerticalOrigin.TOP,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
+          font: '14px Helvetica, sans-serif',       // 字体大小和类型
+          fillColor: Cesium.Color.WHITE,            // 字体颜色
+          outlineColor: Cesium.Color.BLACK,         // 字体描边颜色
+          outlineWidth: 2,                           // 描边宽度
+          backgroundColor: Cesium.Color.fromCssColorString('rgba(0,0,0,0.8)'), // 半透明背景
+          showBackground: true,                      // 显示背景
+          horizontalOrigin: Cesium.HorizontalOrigin.LEFT, // 水平对齐
+          verticalOrigin: Cesium.VerticalOrigin.TOP,      // 垂直对齐
+          pixelOffset: new Cesium.Cartesian2(10, -10),   // 偏移，避免遮挡点位
+          // heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, // 紧贴地面
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,       // 永远显示在最上层
         },
     })
     lcPointsEntity.set('point-' + p.id, { point:lcPoint, node:p});

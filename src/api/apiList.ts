@@ -3,4 +3,5 @@ import {postAction,getAction} from './index'
 // atr-core
 export const getShequTreeData = (param) => getAction('/api/equipment.Equipment/community',{ account: 'demo', password: '123456' })
 export const getWeather = (param) => getAction('/api/equipment.Equipment/weather',{ account: 'demo', password: '123456' })
+export const getFloorInfo = (param) => getAction('/api/equipment.Equipment/getFloorInfo',{ account: 'demo', password: '123456',...param })
 // export const goLogin = (param) => postAction('/sys/login',param)
