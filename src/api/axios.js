@@ -9,7 +9,7 @@ const env = process.env.NODE_ENV === 'development' ? 'development'
 let a = 0
 function myAxios (axiosConfig) {
   const service = axios.create({
-    baseURL: env === 'production' ? BASE_URL : 'https://qhzhzp.ybnetwork.fun/index.php', // 设置统一的请求前缀
+    baseURL: '', // 本地开发由 Vite proxy 或同一服务代理处理
     timeout: 10000, // 设置统一的超时时长
   })
   const err = (error) => {

@@ -31,7 +31,11 @@
     </div> -->
   </div>
 </div>
-<div class="bottom-table">
+<div class="bottom-table" v-if="showTable">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+    <span style="color: #00f0ff; font-weight: 600; font-size: 13px;">▌ 产业园区数据资产台账</span>
+    <span style="color: rgba(255,255,255,0.6); cursor: pointer; font-size: 12px; padding: 2px 6px;" @click="showTable = false">✕ 关闭</span>
+  </div>
   <a-table size="small" class="custom-table" :scroll="{ x: 1000, y: 120 }" :row-class-name="rowClassName" :columns="columns" :pagination="false" :data-source="tableData" bordered>
   </a-table>
 </div>
@@ -55,6 +59,12 @@ const checkedKeys =ref<string[]>([]);
 const selectedNodeJSON = ref<string>('');
 const searchValue = ref('');
 const tableData = ref([]);
+const showTable = ref(false);
+
+defineExpose({
+  showTable,
+  toggleTable: () => { showTable.value = !showTable.value; }
+});
 
 const columns = [
    { title: '小区名称', dataIndex: 'village_name', width: 150,align: "center"},
@@ -396,41 +406,72 @@ onMounted(async () => {
 
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .tree-box {
   position: fixed;
-  top: 120px;
-  right: 20px;
-  z-index: 1;
-  /* background: #7595a2; */
-  padding: 10px;
-  border-radius: 10px;
-  width: 300px;
-  height: 300px;
-  overflow: hidden;
+  top: 110px;
+  right: 370px;
+  z-index: 99;
+  background: rgba(7, 24, 48, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  padding: 12px;
+  border-radius: 6px;
+  width: 260px;
+  max-height: 380px;
+  display: flex;
+  flex-direction: column;
 }
-.bottom-table{
+
+:deep(.ant-input) {
+  background: rgba(10, 36, 70, 0.6) !important;
+  border-color: rgba(0, 240, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+:deep(.ant-tree) {
+  background: transparent !important;
+  color: #cbe6ff !important;
+}
+
+:deep(.ant-tree-node-content-wrapper:hover) {
+  background: rgba(0, 240, 255, 0.15) !important;
+}
+
+:deep(.ant-tree-node-selected .ant-tree-node-content-wrapper) {
+  background: rgba(0, 240, 255, 0.3) !important;
+  color: #00f0ff !important;
+}
+
+.bottom-table {
   position: fixed;
-  bottom: 10px;
-  left: 0px;
-  z-index: 1;
-  /* background: white; */
-  padding: 10px;
-  width: 100%;
-  height: 180px;
+  bottom: 45px;
+  left: 360px;
+  right: 360px;
+  z-index: 99;
+  background: rgba(6, 20, 42, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.7);
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 240px;
 }
+
 .my-tree {
   width: 100%;
-  height: 100%;
-  overflow: auto;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .info {
-  margin-top: 20px;
-  max-height: 300px;
+  margin-top: 10px;
+  max-height: 120px;
   overflow: auto;
-  font-size: 12px;
-  background: #f9f9f9;
-  padding: 10px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  color: #a0d8ff;
 }
 </style>

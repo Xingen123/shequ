@@ -16,12 +16,12 @@ export default defineConfig(({ mode }) => {
 	server: {
 			open: true,
     		host: '0.0.0.0',
+			port: 3006,
 			proxy: {
 				'/api': {
-					target: 'https://qhzhzp.ybnetwork.fun/index.php',
+					target: 'http://127.0.0.1:8088',
 					changeOrigin: true,
-					secure: false,
-					rewrite: (path) => path.replace(/^\/api/, ''),
+					secure: false
 				},
 			},
 	}
